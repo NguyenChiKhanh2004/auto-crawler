@@ -187,12 +187,19 @@ class ValuationCrawler {
     }
 
     async fillPropertyAndValuation(page) {
-        await selectDropdown(page, 'select[name="propertytype"]', this.propertyType);
+        if (this.propertyType) {
+            await selectDropdown(page, 'select[name="propertytype"]', this.propertyType);
+        } else {
+            console.log(this.formData)
+            console.warn(`⚠️ Không xác định được propertyType cho ${this.formData.propertyType}, bỏ qua chọn loại nhà`);
+        }
+
         await selectDropdown(page, '#typeval-show', 'Sales and Lettings Valuation');
         await safeAction(page, () =>
             page.getByRole('button', { name: 'Submit' }).click()
         );
     }
+
 
     async fillContactInfo(page) {
         // Random chọn riêng biệt từng trường
