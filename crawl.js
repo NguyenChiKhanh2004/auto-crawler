@@ -23,10 +23,13 @@ function updateProgress(i) {
 }
 
 (async () => {
-    await sequelize.sync();
+    // await sequelize.sync();
     const browser = await chromium.launch({ headless: true });
 
-    const records = await readCSV('D:/lay_du_lieu_web/filtered_postcode_data(in).csv');
+    // const records = await readCSV('D:/lay_du_lieu_web/filtered_postcode_data(in).csv');
+
+    const records = await readCSV(path.resolve(__dirname, 'filtered_postcode_data(in).csv'));
+
     const start = getLastIndex();
     console.log(`Bắt đầu từ record thứ: ${start + 1} / ${records.length}`);
 
@@ -48,10 +51,10 @@ function updateProgress(i) {
             const crawler = new ValuationCrawler(formData, browser);
             await crawler.crawl();
             updateProgress(globalIdx + 1);
-            console.log(`✅ Đã xử lý record #${globalIdx + 1}`);
+            console.log(`Đã xử lý record #${globalIdx + 1}`);
         }));
     }
 
     await browser.close();
-    console.log('🎉 Hoàn tất tất cả records!');
+    console.log('Hoàn tất tất cả records!');
 })();

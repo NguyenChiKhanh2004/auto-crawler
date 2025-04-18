@@ -1,8 +1,8 @@
 const axios = require('axios');
 const { DataTypes } = require('sequelize');
 const sequelize = require('../utils/connectDB');
-const ValuationRecord = require('../models/valuationSchema')(sequelize, DataTypes);
-const ErrorValuationRecord = require('../models/errorValuationSchema')(sequelize, DataTypes);
+// const ValuationRecord = require('../models/valuationSchema')(sequelize, DataTypes);
+// const ErrorValuationRecord = require('../models/errorValuationSchema')(sequelize, DataTypes);
 const { chromium } = require('playwright');
 const { parseAddress } = require('../utils/addressUtils');
 
@@ -15,6 +15,7 @@ const propertyTypeMap = {
     'Flat/Maisonette': 'Flat',
     'Converted Flat': 'Flat',
     'Purpose Built Flat': 'Flat',
+    'End Terrace House': 'Terraced House',
     'Mid Terrace House': 'Terraced House',
     'Terrace Property': 'Terraced House',
     'Terraced': 'Terraced House',
@@ -63,17 +64,17 @@ async function getCleanText(page, selector) {
     }
 }
 
-async function logError(formData, note) {
-    await ErrorValuationRecord.create({
-        index: formData.index,
-        postcode: formData.postcode,
-        fullAddress: formData.fullAddress,
-        bedrooms: formData.bedrooms || 'N/A',
-        propertyType: formData.propertyType,
-        valuationType: formData.valuationType,
-        note
-    });
-}
+// async function logError(formData, note) {
+//     await ErrorValuationRecord.create({
+//         index: formData.index,
+//         postcode: formData.postcode,
+//         fullAddress: formData.fullAddress,
+//         bedrooms: formData.bedrooms || 'N/A',
+//         propertyType: formData.propertyType,
+//         valuationType: formData.valuationType,
+//         note
+//     });
+// }
 
 class ValuationCrawler {
     /**
@@ -96,7 +97,7 @@ class ValuationCrawler {
         try {
             // Validate bedrooms
             if (!this.formData.bedrooms?.trim()) {
-                await logError(this.formData, 'Số phòng ngủ không hợp lệ');
+                // await logError(this.formData, 'Số phòng ngủ không hợp lệ');
                 return false;
             }
 
@@ -109,7 +110,7 @@ class ValuationCrawler {
             await this.fillContactInfo(page);
 
             const result = await this.extractResults(page);
-            await ValuationRecord.create({ ...this.formData, ...result });
+            // await ValuationRecord.create({ ...this.formData, ...result });
 
             // Prepare webhook payload
             const payload = {
@@ -133,9 +134,9 @@ class ValuationCrawler {
                         payload,
                         { headers: { 'Content-Type': 'application/json', 'Authorization': 'Basic ' + auth } }
                     );
-                    console.log('✅✅ Đã gửi dữ liệu thành công đến webhook');
+                    console.log('✅ Đã gửi dữ liệu thành công đến webhook');
                 } catch (error) {
-                    console.error('❌ Lỗi khi gửi dữ liệu tới webhook:', error.message);
+                    console.error(' Lỗi khi gửi dữ liệu tới webhook:', error.message);
                 }
             }
 
@@ -165,7 +166,7 @@ class ValuationCrawler {
         );
         const matched = options.find(opt => areAddressesEqual(parseAddress(opt.text), parsedAddr));
         if (!matched) {
-            await logError(this.formData, 'Không tìm thấy địa chỉ khớp');
+            // await logError(this.formData, 'Không tìm thấy địa chỉ khớp');
             return false;
         }
         await page.locator('select[name="property"]').selectOption(matched.value);
@@ -178,7 +179,7 @@ class ValuationCrawler {
             opts.map(o => o.value)
         );
         if (!validOptions.includes(this.formData.bedrooms)) {
-            await logError(this.formData, 'Giá trị bedrooms không khớp với trên web');
+            // await logError(this.formData, 'Giá trị bedrooms không khớp với trên web');
             return false;
         }
         await page.locator('select[name="bedrooms"]').selectOption(this.formData.bedrooms);
