@@ -1,107 +1,57 @@
-// const readCSV = require('./src/crawler/CSVReader');
-// const ValuationCrawler = require('./src/crawler/ValuationCrawler');
-
-// (async () => {
-//     try {
-//         const records = await readCSV('D:/lay_du_lieu_web/filtered_postcode_data(in).csv');
-//         console.log(`Đã đọc được ${records.length} record từ file CSV.`);
-//         // const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-//         // let iterationCount = 0;
-//         for (const record of records) {
-//             // iterationCount++;
-//             const formData = {
-//                 index: record.index,
-//                 postcode: record.postcode,
-//                 fullAddress: record.fullAddress,
-//                 bedrooms: record.bedrooms,
-//                 propertyType: record.propertyType,
-//                 valuationType: record.tenure,
-//             };
-//             const crawler = new ValuationCrawler(formData);
-//             const result = await crawler.crawl();
-//             // if (result) {
-//             //     iterationCount++;
-//             //     console.log(`Đã tăng iterationCount: ${iterationCount}`);
-//             // } else {
-//             //     console.warn(`Record ${formData.index} không thành công, iterationCount không tăng.`);
-//             // }
-//             // Khi đạt 10 lần thành công thì nghỉ
-//             // if (iterationCount > 0 && iterationCount % 10 === 0) {
-//             //     // const randomDelay = Math.floor(Math.random() * (4 * 60 * 1000 - 2 * 60 * 1000 + 1)) + 2 * 60 * 1000;
-//             //     const randomDelay = Math.floor(Math.random() * (2 * 60 * 1000 - 1 * 60 * 1000 + 1)) + 1 * 60 * 1000;
-//             //     console.log(`Nghỉ ${randomDelay / 1000} giây...`);
-//             //     iterationCount = 0; // Reset lại nếu cần
-//             //     await delay(randomDelay);
-//             // }
-//         }
-//     } catch (err) {
-//         console.error('Lỗi khi xử lý CSV:', err);
-//     }
-// })();
+// crawl.js
 const fs = require('fs');
 const path = require('path');
+const { chromium } = require('playwright');
+const sequelize = require('./src/utils/connectDB');
 const readCSV = require('./src/crawler/CSVReader');
 const ValuationCrawler = require('./src/crawler/ValuationCrawler');
 
-// Đường dẫn tới file JSON lưu tiến trình
-const progressFilePath = path.join(__dirname, 'progress.json');
+const progressFile = path.join(__dirname, 'progress.json');
+const MAX_CONCURRENT = 5;
 
-// Hàm lấy chỉ số dòng đã xử lý từ file JSON
-function getLastProcessedIndex() {
-    if (fs.existsSync(progressFilePath)) {
+function getLastIndex() {
+    if (fs.existsSync(progressFile)) {
         try {
-            const data = fs.readFileSync(progressFilePath, 'utf8');
-            const obj = JSON.parse(data);
-            return obj.lastProcessedIndex || 0;
-        } catch (err) {
-            console.error('Lỗi khi đọc progress.json:', err);
-            return 0;
-        }
+            return JSON.parse(fs.readFileSync(progressFile, 'utf8')).lastProcessedIndex || 0;
+        } catch { /* ignore */ }
     }
     return 0;
 }
 
-// Hàm cập nhật chỉ số dòng đã xử lý vào file JSON
-function updateProgress(index) {
-    const obj = { lastProcessedIndex: index };
-    fs.writeFileSync(progressFilePath, JSON.stringify(obj, null, 2));
+function updateProgress(i) {
+    fs.writeFileSync(progressFile, JSON.stringify({ lastProcessedIndex: i }, null, 2));
 }
 
 (async () => {
-    try {
-        const records = await readCSV('D:/lay_du_lieu_web/filtered_postcode_data(in).csv');
-        console.log(`Đã đọc được ${records.length} record từ file CSV.`);
+    await sequelize.sync();
+    const browser = await chromium.launch({ headless: true });
 
-        // Lấy chỉ số dòng đã xử lý lần trước
-        let lastProcessedIndex = getLastProcessedIndex();
-        console.log(`Bắt đầu xử lý từ record thứ: ${lastProcessedIndex + 1}`);
+    const records = await readCSV('D:/lay_du_lieu_web/filtered_postcode_data(in).csv');
+    const start = getLastIndex();
+    console.log(`Bắt đầu từ record thứ: ${start + 1} / ${records.length}`);
 
-        // Vòng lặp từ chỉ số đã lưu cho tới hết file CSV
-        for (let i = lastProcessedIndex; i < records.length; i++) {
-            const record = records[i];
+    // chia batch
+    for (let i = start; i < records.length; i += MAX_CONCURRENT) {
+        const batch = records.slice(i, i + MAX_CONCURRENT);
+        await Promise.all(batch.map(async (rec, idx) => {
+            const globalIdx = i + idx;
             const formData = {
-                index: record.index,
-                postcode: record.postcode,
-                fullAddress: record.fullAddress,
-                bedrooms: record.bedrooms,
-                propertyType: record.propertyType,
-                valuationType: record.tenure,
+                index: rec.index,
+                postcode: rec.postcode,
+                fullAddress: rec.fullAddress,
+                bedrooms: rec.bedrooms,
+                propertyType: rec.propertyType,
+                valuationType: rec.tenure
             };
-
-            const crawler = new ValuationCrawler(formData);
-            const result = await crawler.crawl();
-
-            // Sau khi xử lý xong record hiện tại thì cập nhật lại tiến trình
-            updateProgress(i + 1);
-            console.log(`Đã xử lý xong record thứ: ${i + 1}`);
-
-            // Có thể thêm delay nếu cần (đoạn code delay bạn đã comment)
-            // await delay(randomDelay);
-        }
-
-        console.log('Xử lý hoàn tất!');
-    } catch (err) {
-        console.error('Lỗi khi xử lý CSV:', err);
+            // console.log(`Đang xử lý record #${globalIdx + 1}`);
+            // console.log(formData)
+            const crawler = new ValuationCrawler(formData, browser);
+            await crawler.crawl();
+            updateProgress(globalIdx + 1);
+            console.log(`✅ Đã xử lý record #${globalIdx + 1}`);
+        }));
     }
+
+    await browser.close();
+    console.log('🎉 Hoàn tất tất cả records!');
 })();
