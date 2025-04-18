@@ -19,7 +19,8 @@ const propertyTypeMap = {
     'Mid Terrace House': 'Terraced House',
     'Terrace Property': 'Terraced House',
     'Terraced': 'Terraced House',
-    'Semi-Detached House': 'Semi Detached House'
+    'Semi-Detached House': 'Semi Detached House',
+    'Detached House': 'Detached House'
 };
 
 function areAddressesEqual(addr1, addr2) {
