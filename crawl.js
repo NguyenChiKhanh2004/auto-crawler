@@ -7,7 +7,7 @@ const readCSV = require('./src/crawler/CSVReader');
 const ValuationCrawler = require('./src/crawler/ValuationCrawler');
 
 const progressFile = path.join(__dirname, 'progress.json');
-const MAX_CONCURRENT = 5;
+const MAX_CONCURRENT = 1;
 
 function getLastIndex() {
     if (fs.existsSync(progressFile)) {
@@ -24,8 +24,19 @@ function updateProgress(i) {
 
 (async () => {
     // await sequelize.sync();
-    const browser = await chromium.launch({ headless: true });
-
+    const browser = await chromium.launch({
+        proxy: {
+          server: 'socks5://103.78.3.85:33334',
+        //   username: 'brd-customer-hl_6cc46d69-zone-residential_proxy1',
+        //   password: '8sn323vq8shq'
+        },
+        headless: false
+      });
+    // const context = await browser.newContext();
+    // const page = await context.newPage();
+    // await page.goto('https://whatismyipaddress.com/');
+    // await page.waitForTimeout(5000);
+    
     // const records = await readCSV('D:/lay_du_lieu_web/filtered_postcode_data(in).csv');
 
     const records = await readCSV(path.resolve(__dirname, 'filtered_postcode_data(in).csv'));
